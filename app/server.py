@@ -8,6 +8,7 @@ from yandex_chain import YandexEmbeddings, ChatYandexGPT, YandexLLM
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_community.vectorstores import Chroma
 import chromadb
+from chromadb.config import Settings
 
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.schema.output_parser import StrOutputParser
@@ -43,7 +44,12 @@ system_prompt = """Ты ассистент отеля, в твоей базе е
 
 
 embeddings = YandexEmbeddings(**ya_auth)
-chroma_client = chromadb.HttpClient(host=os.getenv("CHROMADB_HOST"), port=int(os.getenv("CHROMADB_PORT")))
+chroma_client = chromadb.HttpClient(
+    host=os.getenv("CHROMADB_HOST"),
+    port=int(os.getenv("CHROMADB_PORT")),
+    settings=Settings(chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
+                      chroma_client_auth_credentials=os.getenv("CHROMA_AUTH_TOKEN")))
+
 langchain_chroma = Chroma(
     client=chroma_client,
     collection_name=collection_name,
