@@ -11,6 +11,7 @@ import chromadb
 from chromadb.config import Settings
 
 from langchain.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.runnables import ConfigurableField
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.pydantic_v1 import BaseModel
@@ -35,8 +36,6 @@ ya_auth = {
 collection_name = "botpress_collection"
 
 namespace = "test1"
-temp = 0.1
-tokens = 100
 system_prompt = """Ты ассистент отеля, в твоей базе есть следующая информация по вопросу клиента,
 ты можешь её использовать для ответа:
 {context}
@@ -55,27 +54,57 @@ langchain_chroma = Chroma(
     collection_name=collection_name,
     embedding_function=embeddings,
 )
-retriever = langchain_chroma.as_retriever()
+retriever = langchain_chroma.as_retriever(search_kwargs={'filter': {'hotel': 'bridgeresort'}}).configurable_fields(
+    search_kwargs=ConfigurableField(
+        id="search_kwargs",
+        name="Search Kwargs",
+        description="Metadata filter for searching docs"
+    )
+)
 
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-template = """Ты ассистент отеля, в твоей базе есть следующая информация по вопросу клиента,
+default_template = """Ты ассистент отеля, в твоей базе есть следующая информация по вопросу клиента,
 ты можешь её использовать для ответа:
 {context}
 
 Вопрос: {input}
 
 Ответ:"""
-prompt = PromptTemplate.from_template(template)
-llm = YandexLLM(**ya_auth, temperature=temp, max_tokens=tokens)
+prompt = PromptTemplate.from_template(default_template).configurable_fields(
+    template=ConfigurableField(
+        id="prompt",
+        name="Prompt",
+        description="The prompt template to use context and input",
+    )
+)
+llm = YandexLLM(**ya_auth, temperature=0.5, max_tokens=100, use_lite=False).configurable_fields(
+    temperature=ConfigurableField(
+        id="llm_temperature",
+        name="LLM Temperature",
+        description="The temperature of the LLM",
+    ),
+    max_tokens=ConfigurableField(
+        id="llm_max_tokens",
+        name="LLM Max tokens",
+        description="The max nubmer of tokens in the LLM response",
+    ),
+    use_lite=ConfigurableField(
+        id="llm_use_lite",
+        name="LLM lite model",
+        description="Lite model flag",
+    )
+)
 chain = (
     {"context": retriever | format_docs, "input": RunnablePassthrough()}
     | prompt
     | llm
     | StrOutputParser()
+).with_config(
+    tags=["contextualize_q_chain"]
 )
 
 
